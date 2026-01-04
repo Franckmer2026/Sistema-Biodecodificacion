@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Buscador Maestro | Bioportal Pro</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+    <style>
+        :root { --slate: #0f172a; --emerald: #10b981; --bg: #f8fafc; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; min-height: 100vh; display: flex; flex-direction: column; }
+        nav { background: white; padding: 12px 5%; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 15px rgba(0,0,0,0.05); }
+        .logo-img { height: 50px; }
+        .container { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 40px 20px; }
+        .search-wrapper { width: 100%; max-width: 650px; display: flex; background: white; border-radius: 50px; padding: 6px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); border: 2px solid #e2e8f0; }
+        #target { flex: 1; border: none; padding: 15px 25px; font-size: 1.15rem; outline: none; border-radius: 50px; }
+        .lupa-btn { background: var(--emerald); color: white; border: none; width: 54px; height: 54px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
+        .card { background: white; width: 100%; max-width: 750px; margin-top: 35px; padding: 40px; border-radius: 20px; display: none; box-shadow: 0 20px 40px rgba(0,0,0,0.04); border-top: 10px solid var(--emerald); }
+        .label { color: var(--emerald); font-weight: 800; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1.5px; display: block; margin-top: 25px; }
+        .data-text { font-size: 1.2rem; line-height: 1.6; color: #334155; margin: 8px 0; }
+        .btn-group { display: flex; gap: 15px; margin-top: 40px; }
+        .action-btn { padding: 14px 24px; border-radius: 12px; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        footer { background: var(--slate); color: #94a3b8; text-align: center; padding: 25px; margin-top: auto; }
+    </style>
+</head>
+<body>
+    <nav>
+        <img src="logo.png" class="logo-img" onerror="this.src='https://via.placeholder.com/150x50?text=Bioportal'">
+        <div>
+            <span id="user-email" style="font-size: 0.85rem; margin-right: 15px; font-weight: 600; color: #475569;"></span>
+            <button onclick="firebase.auth().signOut()" style="padding: 6px 12px; border-radius: 6px; border: 1px solid #ddd; background: white; cursor:pointer;">Salir</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="search-wrapper">
+            <input type="text" id="target" placeholder="Busque el síntoma o conflicto...">
+            <button class="lupa-btn" onclick="buscarLocal()">🔍</button>
+        </div>
+        <div id="loading-status" style="margin-top: 10px; font-size: 0.8rem; color: #64748b;">Conectando...</div>
+
+        <div id="resultCard" class="card">
+            <h2 id="res-nombre" style="margin:0; font-size: 2.2rem; color: var(--slate);"></h2>
+            <span class="label">Conflicto Biológico Detectado</span>
+            <p id="res-conflicto" class="data-text"></p>
+            <span class="label">Mantra de Sanación Sugerido</span>
+            <p id="res-mantra" class="data-text" style="font-style: italic; color: #475569;"></p>
+            
+            <div class="btn-group">
+                <button class="action-btn" style="background:#0f172a; color:white" onclick="descargarPDF()">📄 Generar PDF</button>
+                <button class="action-btn" style="background:#7c3aed; color:white" onclick="copiarPromptMaestro()">✨ Prompt NotebookLM</button>
+            </div>
+        </div>
+    </div>
+
+    <footer>@2026 Franck Soluciones Informáticas</footer>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyDe6bFQronq-tpGwqSnEAm_n97B5_5NepM",
+            authDomain: "bioportal-franck.firebaseapp.com",
+            projectId: "bioportal-franck",
+            storageBucket: "bioportal-franck.firebasestorage.app",
+            messagingSenderId: "461583805994",
+            appId: "1:461583805994:web:2f9658e2cfc6363824dd53"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        let cacheBio = [];
+
+        firebase.auth().onAuthStateChanged(user => {
+            if (user) {
+                document.getElementById('user-email').innerText = user.email;
+                cargarDatos();
+            } else {
+                window.location.assign("index.html");
+            }
+        });
+
+        async function cargarDatos() {
+            const snap = await db.collection("dbBio").get();
+            cacheBio = snap.docs.map(doc => doc.data());
+            document.getElementById('loading-status').innerText = "Base de datos actualizada.";
+        }
+
+        const normalizar = (t) => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+        function buscarLocal() {
+            const query = normalizar(document.getElementById('target').value.trim());
+            const encontrado = cacheBio.find(item => item.nombre && normalizar(item.nombre).includes(query));
+            if (encontrado) {
+                document.getElementById('res-nombre').innerText = encontrado.nombre;
+                document.getElementById('res-conflicto').innerText = encontrado.conflicto;
+                document.getElementById('res-mantra').innerText = encontrado.mantra;
+                document.getElementById('resultCard').style.display = 'block';
+            } else { alert("Síntoma no encontrado en la base."); }
+        }
+
+        function descargarPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            doc.setFontSize(18); doc.text("REPORTE BIO: " + document.getElementById('res-nombre').innerText, 20, 20);
+            doc.setFontSize(12); doc.text("Conflicto: " + document.getElementById('res-conflicto').innerText, 20, 40);
+            doc.save("Reporte_Bio.pdf");
+        }
+
+        // PROMPT RECONSTRUIDO CON TODA LA FUERZA
+        function copiarPromptMaestro() {
+            const nombre = document.getElementById('res-nombre').innerText;
+            const conflicto = document.getElementById('res-conflicto').innerText;
+            
+            const promptCompleto = `Actúa como un experto en Descodificación Biológica. Basándote ÚNICAMENTE en los documentos cargados (fuentes), realiza un análisis profundo de: ${nombre}. 
+El conflicto detectado es: ${conflicto}. 
+Diseña un protocolo de sesión de 40 minutos para abordar este caso, incluyendo preguntas poderosas y actos simbólicos de liberación.`;
+            
+            navigator.clipboard.writeText(promptCompleto);
+            alert("¡Prompt Maestro copiado! Pégalo en NotebookLM.");
+        }
+
+        document.getElementById('target').addEventListener('keypress', (e) => { if(e.key === 'Enter') buscarLocal(); });
+    </script>
+</body>
+</html>
