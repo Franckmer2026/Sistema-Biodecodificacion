@@ -112,7 +112,7 @@
             
             const promptCompleto = `Actúa como un experto en Descodificación Biológica. Basándote ÚNICAMENTE en los documentos cargados (fuentes), realiza un análisis profundo de: ${nombre}. 
 El conflicto detectado es: ${conflicto}. 
-Diseña un protocolo de sesión de 40 minutos para abordar este caso, incluyendo preguntas poderosas y actos simbólicos de liberación.`;
+Diseña un protocolo de sesión de 40 minutos para abordar este caso, incluyendo preguntas poderosas, mantras y actos simbólicos de liberación.`;
             
             navigator.clipboard.writeText(promptCompleto);
             alert("¡Prompt Maestro copiado! Pégalo en NotebookLM.");
@@ -121,4 +121,5 @@ Diseña un protocolo de sesión de 40 minutos para abordar este caso, incluyendo
         document.getElementById('target').addEventListener('keypress', (e) => { if(e.key === 'Enter') buscarLocal(); });
     </script>
 </body>
+
 </html>
